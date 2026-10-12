@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools==75.8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minebot-discovery"
+version = "0.1.0"
+description = "Reproducible GitHub discovery queue for Minecraft building datasets"
+requires-python = ">=3.12"
+dependencies = ["httpx==0.28.1"]
+
+[project.scripts]
+minebot = "minebot.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["minebot*"]

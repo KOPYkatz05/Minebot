@@ -1,0 +1,16 @@
+{
+  "queries": [
+    "litematic in:name,description,readme",
+    "litematica schematics in:readme",
+    "minecraft schematics in:name,description,readme",
+    "topic:litematica"
+  ],
+  "watched_repositories": [],
+  "excluded_repositories": [],
+  "max_requests": 500,
+  "max_seconds": 7200,
+  "max_new_files": 100,
+  "max_download_bytes": 1073741824,
+  "max_storage_bytes": 10737418240,
+  "paused": false
+}

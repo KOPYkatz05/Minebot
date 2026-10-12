@@ -36,7 +36,7 @@ class GitHub:
     def close(self):
         self.client.close()
 
-    def get(self, path, params=None):
+    def _request(self, path, params=None, *, sink=None, limit=16 * 1024**2, on_bytes=None):
         if not path.startswith('/') or path.startswith('//') or '://' in path:
             raise ValueError('GitHub requests require relative API paths')
         if self.requests >= self.config.max_requests or time.monotonic() - self.started >= self.config.max_seconds:
@@ -45,7 +45,8 @@ class GitHub:
             raise Deferred('GitHub rate limit reached', self.next_request)
         self.requests += 1
         try:
-            with self.client.stream('GET', path, params=params) as response:
+            headers = {'Accept': 'application/vnd.github.raw+json', 'Accept-Encoding': 'identity'} if sink else None
+            with self.client.stream('GET', path, params=params, headers=headers) as response:
                 status = response.status_code
                 if status == 401:
                     raise SetupError('GitHub rejected GITHUB_TOKEN; check or replace the credential')
@@ -71,20 +72,41 @@ class GitHub:
                 if status != 200:
                     raise ValueError(f'GitHub request failed (HTTP {status})')
                 body = bytearray()
+                received = 0
                 for part in response.iter_bytes():
-                    body.extend(part)
-                    if len(body) > 16 * 1024**2:
-                        raise ValueError('GitHub metadata response exceeds 16 MiB')
+                    if time.monotonic() - self.started >= self.config.max_seconds:
+                        raise Deferred('Run time budget reached during transfer')
+                    received += len(part)
+                    if on_bytes:
+                        on_bytes(len(part))
+                    if received > limit:
+                        raise ValueError('GitHub response exceeds allowed byte size')
+                    if sink:
+                        sink.write(part)
+                    else:
+                        body.extend(part)
                 if response.headers.get('x-ratelimit-remaining') == '0':
                     try:
                         self.next_request = float(response.headers.get('x-ratelimit-reset', time.time() + 60))
                     except ValueError:
                         self.next_request = time.time() + 60
+                if sink:
+                    return received
                 import json
                 return json.loads(body)
         except httpx.HTTPError:
             # Never persist exception URLs, headers, response text, or credentials.
             raise Deferred('GitHub network request failed', time.time() + 60) from None
+
+    def get(self, path, params=None):
+        return self._request(path, params)
+
+    def blob(self, name, sha, sink, limit, on_bytes=None):
+        return self._request(f'/repos/{name}/git/blobs/{quote(sha, safe="")}',
+                             sink=sink, limit=limit, on_bytes=on_bytes)
+
+    def commit(self, name, revision):
+        return self.get(f'/repos/{name}/commits/{quote(revision, safe="")}')
 
     def repository(self, name):
         repo = self.get('/repos/' + quote(name, safe='/'))

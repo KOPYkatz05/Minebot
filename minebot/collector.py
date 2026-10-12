@@ -7,6 +7,7 @@ from urllib.parse import quote
 import uuid
 
 from .github import Deferred, GitHub, SetupError
+from .config import Config
 from .lock import collector_lock
 from .store import now
 
@@ -24,9 +25,9 @@ def scan_key(repo, revision, prefix, sha):
     return f"0tree:{repo['id']}:{suffix}"
 
 
-def run(store, github_factory=GitHub):
+def run(store, github_factory=GitHub, config_override=None):
     with collector_lock(store.directory / 'collector.lock'):
-        config = store.config()
+        config = Config.parse(store.config().document() | (config_override or {}))
         identifier = uuid.uuid4().hex
         report = {'started': now(), 'status': 'running', 'requests': 0, 'new_candidates': 0,
                   'coverage': 'bounded; repository search is not exhaustive', 'warnings': [], 'error': None}
@@ -40,9 +41,9 @@ def run(store, github_factory=GitHub):
             if config.paused:
                 report['status'] = 'paused'
                 return report
-            retry_at = store.status()['runs'][1:2]
-            if retry_at and retry_at[0].get('retry_at', 0) > time.time():
-                raise Deferred('Previous GitHub deferral has not elapsed', retry_at[0]['retry_at'])
+            retry_at = store.retry_at()
+            if retry_at > time.time():
+                raise Deferred('Previous GitHub deferral has not elapsed', retry_at)
             github = github_factory(config)
             pending_keys = {key for key, _ in store.work()}
             for query in config.queries:
@@ -115,7 +116,7 @@ def run(store, github_factory=GitHub):
                             elif entry['type'] in ('blob', 'commit'):
                                 suffix = PurePosixPath(path).suffix.lower()
                                 supported = suffix == '.litematic' and entry.get('mode', '100644') in ('100644', '100755')
-                                if supported or suffix in ('.zip', '.schem', '.schematic', '.7z', '.rar') or entry['type'] == 'commit':
+                                if supported or suffix in ('.litematic', '.zip', '.schem', '.schematic', '.7z', '.rar') or entry['type'] == 'commit':
                                     document = {'repository_id': task['repository']['id'], 'repository': task['name'],
                                                 'owner_login': task['repository']['owner_login'], 'asset_author': None,
                                                 'revision': task['revision'], 'blob_sha': entry['sha'], 'path': path,
@@ -146,6 +147,8 @@ def run(store, github_factory=GitHub):
             report.update(status='setup_error', error=str(error))
         except Deferred as error:
             report.update(status='deferred', error=str(error), retry_at=error.retry_at or 0)
+            if error.retry_at:
+                store.defer_until(error.retry_at)
         except Exception:
             report.update(status='failed', error='Unexpected collector failure; queued work retained')
             raise

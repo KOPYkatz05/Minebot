@@ -38,7 +38,9 @@ independent = cmp.pipeline.cross_check(output, converted)
 # Save reports and source hash; passed conversion does not approve usage or visual quality.
 ```
 
-Keep isolated subprocess validation in the collector when that milestone is implemented.
+Keep parser validation in the collector's isolated subprocess.
+The implemented `minebot validate` worker now uses these entry points directly. See
+[BOT.md](BOT.md) for limits, report storage, retries and manual approval boundaries.
 Do not instantiate a second reviewer Service: its startup recovers jobs, which would interfere with a
 running reviewer. Do not edit reviewer SQLite tables from the collector; eventual handoff uses its API.
 

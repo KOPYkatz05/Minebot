@@ -27,7 +27,7 @@ two hours per run, one serial request at a time. Keep the existing reviewer's 64
    identify held sources, stream immutable files through temporary paths, verify Git blob identity
    and byte size, compute SHA-256, detect LFS pointers, deduplicate artifacts across references,
    retain retry times and failed attempts, enforce download/storage budgets, rotate local logs.
-4. Isolated parser and independent conversion comparisons using the existing local project adapters.
+4. Isolated parser and independent conversion comparisons using the existing project adapters now included in this repository (see docs/ADAPTERS.md).
    Preserve block states, signed regions and metadata. Keep failed reports; generate measured redstone
    suggestions without changing human classifications. No GPU training dependencies in the collector.
 5. Idempotent API handoff to the local reviewer; stage when offline. Add Discovery endpoints and tab,

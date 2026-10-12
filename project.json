@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "project_name": "minecraft-building-ai",
+  "minecraft_edition": "java",
+  "minecraft_version": "26.3",
+  "litematica_version": "0.29.1",
+  "profile_manager": "modrinth",
+  "mod_loader": null,
+  "environment_evidence": "user_reported",
+  "initial_input_format": "litematic",
+  "available_builds_reported": 4,
+  "initial_compatibility_status": "user_confirmed_originals_load_in_profile",
+  "first_building_category": "small_house",
+  "first_training_task": "masked_section_completion",
+  "training_extent_xyz": [32, 32, 32],
+  "interiors_policy": "preserve_when_present",
+  "source_policy": "own_builds_or_explicit_training_permission",
+  "random_seed": 42,
+  "split_group_policy": "parent_build_and_related_variants_before_augmentation",
+  "model_architecture": "small_3d_conv_masked_completion_debug",
+  "roundtrip_visual_check": "user_confirmed_blocks_look_correct",
+  "pilot_dataset": "data/parsed_buildings/pilot-v1",
+  "first_source_exercise": "experiments/medieval-house-completion-v1",
+  "first_training_run": "experiments/generated-house-completion-v1/run-200",
+  "first_training_run_scope": "single_project_generated_house_same_build_probe_masks",
+  "paths": {
+    "raw": "data/raw_litematics",
+    "parsed": "data/parsed_buildings",
+    "annotations": "data/annotations",
+    "exports": "exports",
+    "runs": "experiments"
+  }
+}

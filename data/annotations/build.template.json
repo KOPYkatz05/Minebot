@@ -1,0 +1,21 @@
+{
+  "building_id": null,
+  "source_file": null,
+  "source_sha256": null,
+  "source_url": null,
+  "creator": null,
+  "training_permission": null,
+  "permission_evidence": null,
+  "minecraft_version": null,
+  "minecraft_data_version": null,
+  "litematic_format_version": null,
+  "dimensions_xyz": null,
+  "region_count": null,
+  "non_air_block_count": null,
+  "style_labels": [],
+  "has_interior": null,
+  "front_direction": null,
+  "family_group_id": null,
+  "split": "unassigned",
+  "review_notes": []
+}

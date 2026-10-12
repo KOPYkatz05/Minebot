@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "current_download_source": {
+    "site": "https://abfielder.com",
+    "evidence": "User reports all four current files came from free downloads on this site",
+    "individual_download_pages": null,
+    "training_permission": "unknown",
+    "terms_reference": "https://www.abfielder.com/termsAndConditions",
+    "terms_observation": "General use terms found; no explicit model-training provision identified; automated collection is restricted"
+  },
+  "candidate_sources": [
+    {"site": "https://mineschematic.com", "training_permission": "unknown"},
+    {"site": "https://www.planetminecraft.com/projects/tag/litematica/?share=schematic", "training_permission": "unknown"},
+    {"site": "https://market.phantom-node.com", "training_permission": "unknown"},
+    {"site": "https://bloxelizer.com/schematics", "training_permission": "unknown"}
+  ],
+  "collection_status": "No automatic downloads or scraping configured",
+  "component_generator_plan": "Write project-owned generators with recorded dimensions, palettes, seeds and component labels; retain separate real-building evaluation"
+}

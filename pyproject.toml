@@ -7,10 +7,14 @@ name = "minebot-discovery"
 version = "0.1.0"
 description = "Reproducible GitHub discovery queue for Minecraft building datasets"
 requires-python = ">=3.12"
-dependencies = ["httpx==0.28.1"]
+dependencies = ["httpx==0.28.1", "nbtlib==2.0.4", "litemapy==0.11.0b0", "numpy==2.3.5"]
+
+[project.optional-dependencies]
+reviewer = ["fastapi==0.115.12", "uvicorn==0.34.2", "python-multipart==0.0.20"]
 
 [project.scripts]
 minebot = "minebot.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["minebot*"]
+include = ["minebot*", "reviewer"]
+namespaces = false

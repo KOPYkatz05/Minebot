@@ -1,3 +1,20 @@
+__pycache__/
+*.pyc
+.venv/
+data/raw_litematics/*
+!data/raw_litematics/.gitkeep
+data/parsed_buildings/*
+!data/parsed_buildings/.gitkeep
+exports/*
+!exports/.gitkeep
+experiments/*
+!experiments/.gitkeep
+data/reviewer/
+reviewer/frontend/node_modules/
+reviewer/frontend/dist/
+reviewer/frontend/*.tsbuildinfo
+
+# Shared repository: local state and credentials
 .venv/
 __pycache__/
 *.pyc
@@ -8,3 +25,10 @@ data/
 .env
 .env.*
 !.env.example
+
+data/discovery/
+.env
+.env.*
+!.env.example
+minebot-cloud/
+repository-publish/

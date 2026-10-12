@@ -236,7 +236,7 @@ class DiscoveryTests(unittest.TestCase):
         with redirect_stdout(output):
             code = main(['--data-dir', str(self.directory), 'status'])
         self.assertEqual(code, 0)
-        self.assertEqual(json.loads(output.getvalue())['implementation_stage'], 'metadata_discovery')
+        self.assertEqual(json.loads(output.getvalue())['implementation_stage'], 'isolated_validation')
         with self.assertRaises(ValueError):
             self.store.candidates(limit=1001)
         with self.assertRaises(ValueError):
@@ -250,6 +250,16 @@ class DiscoveryTests(unittest.TestCase):
                     client.get(path)
         finally:
             client.close()
+
+    def test_litematic_symlink_is_recorded_as_unsupported(self):
+        def symlink(request):
+            if '/commits/' in request.url.path:
+                return httpx.Response(200, json=COMMIT)
+            if '/git/trees/' in request.url.path:
+                return httpx.Response(200, json={'tree': [blob('linked.litematic') | {'mode': '120000'}]})
+            return httpx.Response(200, json=REPO)
+        run(self.store, self.factory(symlink))
+        self.assertEqual(self.store.candidates()[0]['status'], 'unsupported')
 
 
 if __name__ == '__main__':

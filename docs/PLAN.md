@@ -22,15 +22,28 @@ two hours per run, one serial request at a time. Keep the existing reviewer's 64
 2. **Implemented metadata portion:** repository search with pagination, exclusions, watched repos,
    pinned commits and tree traversal, durable traversal positions, public-only enforcement,
    explicit incomplete-coverage reporting, unsupported-format records and filename suggestions.
-   This release deliberately stops before downloading source assets.
-3. **Next:** fetch license/README/attribution evidence at the pinned revision, record evidence hashes,
-   identify held sources, stream immutable files through temporary paths, verify Git blob identity
-   and byte size, compute SHA-256, detect LFS pointers, deduplicate artifacts across references,
-   retain retry times and failed attempts, enforce download/storage budgets, rotate local logs.
-4. Isolated parser and independent conversion comparisons using the existing project adapters now included in this repository (see docs/ADAPTERS.md).
+   Discovery remains a separate metadata-only command.
+3. **Implemented:** separate `collect` command with root/ancestor license, README and attribution
+   evidence pinned to the source commit and hashed; conservative source holds; streamed originals
+   through temporary paths; verified Git blob identity and exact byte size; SHA-256 artifact storage
+   and deduplication across source references; retained LFS pointers without external fetches;
+   durable attempts, retry times and shared GitHub deferrals; transfer/storage/time/file/request budgets;
+   rotating local logs; automatic backed-up schema v2 migration. Evidence scanning is bounded and
+   heuristic, not a determination of asset license applicability. Everything remains unvalidated,
+   usage unknown and unapproved. Offline synthetic tests pass; live collection has not been piloted.
+   Credential-safe `check-github` and a metadata-only `probe` command support readiness verification
+   with a total budget of at most 10 requests including authentication. The development environment's
+   attempted live check stopped with `setup_error` before any requests because its running task had
+   no credential binding; no successful authentication or discovery yield is claimed.
+4. **Implemented:** offline isolated validation through the published adapters in docs/ADAPTERS.md.
    Preserve block states, signed regions and metadata. Keep failed reports; generate measured redstone
    suggestions without changing human classifications. No GPU training dependencies in the collector.
-5. Idempotent API handoff to the local reviewer; stage when offline. Add Discovery endpoints and tab,
+   The worker uses bounded loading, archival verification, separately loaded comparisons and Litemapy
+   checks of both originals and conversions. Five-minute timeout, bounded outputs, Linux memory guard,
+   retained failed attempts, source/converter identities, duplicate reuse and stale-validation detection
+   are implemented. Measured redstone IDs produce unconfirmed suggestions only. Schema v3 records
+   validation separately; visual quality, provenance and training permission still require human review.
+5. **Next:** idempotent API handoff to the local reviewer; stage when offline. Add Discovery endpoints and tab,
    source evidence display, links to review, pause/retry/dismiss/restore, progress, failures and storage.
    Preserve human edits on duplicate imports. Approval, usage and dataset admission remain manual.
 6. Windows scheduler setup/removal with hidden interactive-user execution, no stored password,

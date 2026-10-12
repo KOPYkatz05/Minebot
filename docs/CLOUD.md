@@ -14,7 +14,12 @@ In Codex on web or desktop:
 
 Suggested first cloud task:
 
-> Read AGENTS.md, docs/PLAN.md and docs/ADAPTERS.md. Run the tests, then implement milestone 3: pinned evidence capture and streamed immutable downloads, with blob verification, SHA-256 deduplication, storage budgets, held-source handling and deterministic tests. Keep all candidates unapproved and usage permission unknown. Open a PR with the validation results.
+> Read AGENTS.md, docs/PLAN.md and docs/ADAPTERS.md. Run the portable tests and inspect the existing collector and isolated validation commands. Continue milestone 5 with an idempotent reviewer API handoff that preserves human decisions, stages safely when offline and never writes reviewer tables from the collector. Keep all candidates unapproved and usage permission unknown. Open a PR with the validation results.
+
+For a new task with the GitHub credential applied, verify it with `minebot check-github`, then run
+`minebot --data-dir data/probe probe --request-budget 10`. Authentication counts toward the total
+10-request budget. Both commands omit the credential and profile contents; the probe is metadata-only.
+Saved environment changes do not update the credential bindings of a task that is already running.
 
 The source checkout now includes tools/, reviewer/, project.json, annotations and all tests. The original Windows datasets and local game cache remain excluded. See docs/ADAPTERS.md for exact parser and conversion entry points.
 

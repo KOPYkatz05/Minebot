@@ -9,6 +9,11 @@ conversion, dataset preparation, optional training experiments, and the local re
 must reuse the adapters described in [docs/ADAPTERS.md](docs/ADAPTERS.md). The bot commands and current
 implementation status are in [docs/BOT.md](docs/BOT.md); the accepted bot plan is in [docs/PLAN.md](docs/PLAN.md).
 
+The collector now supports pinned source evidence, verified immutable downloads and offline isolated
+conversion validation through the existing adapters. Run `minebot run`, `minebot collect` and
+`minebot validate` as separate bounded stages. Successful file validation never grants usage,
+visual approval or training admission. Reviewer API handoff is the next bot milestone.
+
 For a fresh Linux/Codex setup with Python 3.12 and Node.js 22, run `bash scripts/setup-cloud.sh`.
 It installs core/reviewer dependencies, builds the frontend with the existing lockfile, and runs
 the portable tests. Windows setup remains `setup-reviewer.ps1` with a project `.venv`.

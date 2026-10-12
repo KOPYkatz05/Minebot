@@ -8,6 +8,7 @@ from .collector import run
 from .collection import collect
 from .diagnostics import check_github
 from .validation import validate
+from .handoff import handoff
 from .lock import AlreadyRunning
 from .store import Store
 
@@ -20,12 +21,14 @@ def main(argv=None):
         commands.add_parser(name)
     probe = commands.add_parser('probe', help='Authenticate, then discover metadata with at most 10 total requests')
     probe.add_argument('--request-budget', type=int, default=10)
+    delivery = commands.add_parser('handoff', help='Send validated staged originals to the local reviewer API')
+    delivery.add_argument('--reviewer-url', default='http://127.0.0.1:8765')
     listing = commands.add_parser('candidates')
     listing.add_argument('--limit', type=int, default=100)
     listing.add_argument('--offset', type=int, default=0)
     configure = commands.add_parser('configure')
     configure.add_argument('file', type=Path)
-    for action in ('dismiss', 'restore', 'retry', 'retry-validation'):
+    for action in ('dismiss', 'restore', 'retry', 'retry-validation', 'retry-handoff'):
         commands.add_parser(action).add_argument('candidate_id')
     commands.add_parser('attempts').add_argument('candidate_id')
     args = parser.parse_args(argv)
@@ -41,13 +44,15 @@ def main(argv=None):
             result = store.candidates(args.limit, args.offset)
         elif args.command == 'attempts':
             result = store.attempts(args.candidate_id)
-        elif args.command in ('dismiss', 'restore', 'retry', 'retry-validation'):
+        elif args.command in ('dismiss', 'restore', 'retry', 'retry-validation', 'retry-handoff'):
             store.action(args.candidate_id, args.command)
             result = {'action': args.command, 'candidate_id': args.candidate_id}
         elif args.command == 'collect':
             result = collect(store)
         elif args.command == 'validate':
             result = validate(store)
+        elif args.command == 'handoff':
+            result = handoff(store, args.reviewer_url)
         elif args.command in ('check-github', 'probe'):
             result = check_github(store, discover=args.command == 'probe',
                                   budget=getattr(args, 'request_budget', 10))

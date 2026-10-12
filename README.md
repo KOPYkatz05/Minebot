@@ -12,7 +12,11 @@ implementation status are in [docs/BOT.md](docs/BOT.md); the accepted bot plan i
 The collector now supports pinned source evidence, verified immutable downloads and offline isolated
 conversion validation through the existing adapters. Run `minebot run`, `minebot collect` and
 `minebot validate` as separate bounded stages. Successful file validation never grants usage,
-visual approval or training admission. Reviewer API handoff is the next bot milestone.
+visual approval or training admission. `minebot handoff` now transfers validated originals and pinned
+evidence to the running local reviewer API. Its Discovery tab lists received source references and
+opens builds for review. Discovery also provides local collector pause/resume, candidate retries,
+dismiss/restore, run progress, attempt history and storage usage. Scheduling and the live collection
+pilot remain unfinished.
 
 For a fresh Linux/Codex setup with Python 3.12 and Node.js 22, run `bash scripts/setup-cloud.sh`.
 It installs core/reviewer dependencies, builds the frontend with the existing lockfile, and runs

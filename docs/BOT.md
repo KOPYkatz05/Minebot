@@ -2,7 +2,7 @@
 
 Automated GitHub discovery and verified original collection for a reproducible Minecraft building
 dataset. **Pinned evidence capture, verified downloads and isolated conversion validation are
-implemented; reviewer handoff is next.**
+implemented, with local API handoff and Discovery controls for the local collector. Scheduling and the live collection pilot remain unfinished.**
 It never approves builds or grants training permission.
 
 ## Codex Cloud
@@ -32,6 +32,8 @@ From the repository root (Windows: replace `.venv/bin/python` with `.venv/Script
 .venv/bin/python -m minebot run
 .venv/bin/python -m minebot collect
 .venv/bin/python -m minebot validate
+.venv/bin/python -m minebot handoff
+.venv/bin/python -m minebot retry-handoff CANDIDATE_ID
 .venv/bin/python -m minebot candidates --limit 100 --offset 0
 .venv/bin/python -m minebot pause
 .venv/bin/python -m minebot resume
@@ -144,3 +146,94 @@ and a recommendation to exclude matching builds from initial house datasets pend
 The screen does not simulate circuits or prove absence; it counts across retained regions without
 flattening overlaps. Human classifications, source permissions, visual approvals and training admission
 remain separate. Passing file checks is not visual approval or proof of design quality.
+
+## Local reviewer handoff
+
+Run the reviewer on the same machine as the collector, using the normal local launch instructions.
+After `run`, `collect` and `validate`, execute:
+
+```bash
+.venv/bin/python -m minebot handoff --reviewer-url http://127.0.0.1:8765
+```
+
+Use the same `--data-dir` before each command if the collection is stored elsewhere. Handoff accepts
+only loopback HTTP origins, bypasses environment proxies, sends no GitHub credential and follows no
+redirects. The collector never starts a reviewer Service or opens its database. The reviewer must be
+running for delivery; unavailable delivery records a one-minute retry deferral and preserves staging.
+`retry-handoff CANDIDATE_ID` clears a local delivery failure/deferral after its cause is resolved.
+Dismissed candidates, failed validation and stale validation are not delivered. File, request and time
+budgets and collector pause apply to delivery. In-flight interruption is safe to retry.
+
+The API checks candidate/repository/revision/path identity, exact byte size, Git blob SHA and SHA-256
+before importing. Pinned evidence is also checked and retained under the reviewer's managed storage.
+A successful receipt records the build ID in collector state. A lost receipt can be retried: the
+reviewer deduplicates originals by hash and source references by manifest, preserving human labels,
+review history, source-field edits and dataset memberships. It creates its own conversion job instead
+of trusting a remote approval. Everything new starts pending, with unknown usage and unconfirmed labels.
+
+The **Discovery** tab lists received source references, collector validation status, evidence downloads
+and **Open for review**. Its local collector panel now includes pause/resume, stage counts, recent runs,
+paginated candidate search and state filters, collection/validation/delivery retries, dismiss/restore,
+failures, attempt history and staging storage usage. The ordinary review, library and dataset controls
+continue to manage human decisions independently.
+
+Codex Cloud cannot reach a Windows reviewer's `127.0.0.1`. This implementation supports local delivery;
+cloud-to-local artifact transfer and any remote authenticated connection require a separate transport
+implementation. GitHub source synchronization does not copy the ignored staging database or files.
+Do not expose the current loopback reviewer to the public Internet. Scheduling and a live downloaded
+build pilot remain unimplemented/unverified; generated fixtures cover this handoff milestone.
+
+Handoff verification: the Python suite ran 136 tests with no failures and 12 optional resource/training skips. The TypeScript/Vite build passed. A generated-house fixture passed real loopback HTTP delivery and browser checks of Discovery, evidence links, opening review, recording approval and preserving it after reviewer restart. No downloaded source assets or real user reviewer state were used.
+
+
+## Discovery collector controls
+
+The reviewer connects to the separate collector database in `data/discovery/` by default. If the CLI
+uses another `--data-dir`, set `MINEBOT_DATA_DIR` to the same directory **before starting the reviewer**.
+The browser cannot change this path or run arbitrary commands. On Windows, for example:
+
+```powershell
+$env:MINEBOT_DATA_DIR = 'C:\MinebotData\discovery'
+.\start-reviewer.ps1
+.\.venv\Scripts\python.exe -m minebot --data-dir 'C:\MinebotData\discovery' run
+```
+
+Use distinct collector and reviewer directories. An existing current-schema collector can be observed
+while a CLI worker is active; schema migration requires its exclusive process lock. Collector controls
+never recover running jobs merely by opening the screen, never start a second reviewer Service and
+never modify review decisions, classifications or dataset membership.
+
+Pause is cooperative: the current request or worker checkpoint may finish before the lock is released.
+The screen shows **Pause requested · worker stopping** while that happens. Resume enables subsequent
+runs; it does not start a background run or install a schedule. Start bounded stages with the CLI until
+scheduling is implemented. Retry actions queue work for the relevant next `collect`, `validate` or
+`handoff` command. GitHub server deferrals remain in force after candidate retries.
+
+Candidate changes use the collector's process lock and return HTTP 409 if a worker is active. Pause
+remains available then. Dismissal preserves source/evidence files and prior delivery references;
+restore returns the previous collection state. Held sources cannot be forced through collection by a
+retry. Validation and delivery retries are offered only for relevant failed/deferred/interrupted states.
+These operations preserve independently recorded reviewer approval and dataset membership.
+
+The interface polls every four seconds. Counts and recent runs report persisted checkpoints rather
+than an estimated completion percentage. Discovery saves counters at task boundaries, collection at
+file boundaries, and validation/delivery at attempt boundaries. An abandoned running record is shown
+as interrupted when no worker holds the lock, without modifying the original record. Stage history,
+source hashes and unconfirmed suggestions remain separate from human review status.
+
+Storage counts regular files under collector staging, including originals, evidence, validations and
+temporary files; database/log storage and the reviewer's copies are outside this staging budget. It
+samples at most every five seconds and excludes symlinks. Active writes can make the sample approximate.
+No files are deleted automatically. Evidence downloads verify candidate membership, size and SHA-256
+and use hash-derived paths. API responses expose source identities and stage summaries, not credential
+values, local artifact paths or complete parser scene reports.
+
+These controls manage the collector running on the same machine as the reviewer. They do not connect
+Codex Cloud to an existing Windows installation, transfer ignored databases/assets or publish a service.
+
+Collector-control verification: 148 Python tests completed with no failures and 12 optional resource/
+training skips. The frontend build passed. A generated-fixture browser session checked pagination,
+search, collection retry, pause during an active process lock, disabled candidate actions while active,
+dismiss/restore, desktop/mobile layout and persistence of pause, dismissal and reviewer approval after
+restart. The real loopback handoff passed and the browser reported no page errors. No GitHub discovery
+requests or downloaded source assets were needed for these checks.

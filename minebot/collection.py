@@ -263,6 +263,7 @@ def collect(store, github_factory=GitHub):
                 logger.info(json.dumps({'run_id': identifier, 'candidate_id': candidate['id']} | detail))
                 attempt = None
                 report['processed'] += 1
+                report['requests'] = github.requests
                 store.save_run(identifier, report)
             report['status'] = 'completed'
         except Deferred as error:

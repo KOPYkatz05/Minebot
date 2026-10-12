@@ -17,6 +17,17 @@ def now():
 
 
 class Store:
+    @classmethod
+    def open_existing(cls, directory):
+        """Open current collector state without migration or initialization writes."""
+        result = cls.__new__(cls)
+        result.directory = Path(directory).resolve()
+        result.database = result.directory / 'discovery.sqlite3'
+        with sqlite3.connect(result.database.as_uri() + '?mode=ro', uri=True) as db:
+            if db.execute('PRAGMA user_version').fetchone()[0] != 3:
+                raise ValueError('Collector database needs migration before opening controls')
+        return result
+
     def __init__(self, directory):
         self.directory = Path(directory).resolve()
         self.directory.mkdir(parents=True, exist_ok=True)
@@ -138,14 +149,19 @@ class Store:
             return [json.loads(r['document']) | {'id': r['id'], 'status': r['status'], 'created': r['created']} for r in rows]
 
     def action(self, identifier, action):
-        if action not in ('dismiss', 'restore', 'retry', 'retry-validation'):
-            raise ValueError("Choose dismiss, restore, retry or retry-validation")
+        if action not in ('dismiss', 'restore', 'retry', 'retry-validation', 'retry-handoff'):
+            raise ValueError("Choose dismiss, restore, retry, retry-validation or retry-handoff")
         with self.db() as db:
             row = db.execute("SELECT status,document FROM candidates WHERE id=?", (identifier,)).fetchone()
             if not row:
                 raise ValueError("Candidate not found")
             doc = json.loads(row['document'])
-            if action == 'retry-validation':
+            if action == 'retry-handoff':
+                if row['status'] != 'downloaded':
+                    raise ValueError('Only downloaded candidates can be handed off')
+                doc['handoff'] = {'status': 'pending', 'attempts': doc.get('handoff', {}).get('attempts', 0)}
+                status = row['status']
+            elif action == 'retry-validation':
                 if row['status'] != 'downloaded':
                     raise ValueError('Only downloaded candidates can be queued for validation')
                 doc['validation_status'] = 'not_validated'
@@ -181,6 +197,16 @@ class Store:
                 ORDER BY CASE WHEN lower(path) LIKE '%house%' THEN 0 ELSE 1 END,created,id LIMIT 1""",
                 (time.time(),)).fetchone()
             return (json.loads(row['document']) | {'id': row['id'], 'status': row['status']}) if row else None
+
+    def next_handoff(self, reviewer_url):
+        with self.db() as db:
+            row = db.execute("""SELECT * FROM candidates WHERE status='downloaded'
+                AND json_extract(document,'$.validation_status')='passed'
+                AND (COALESCE(json_extract(document,'$.handoff.reviewer_url'),'') != ?
+                     OR COALESCE(json_extract(document,'$.handoff.status'),'pending') IN ('pending','sending','deferred'))
+                AND COALESCE(json_extract(document,'$.handoff.retry_at'),0)<=?
+                ORDER BY created,id LIMIT 1""", (reviewer_url, time.time())).fetchone()
+            return json.loads(row['document']) | {'id': row['id'], 'status': row['status']} if row else None
 
     def artifact(self, document):
         with self.db() as db:

@@ -2,6 +2,7 @@
 
 from contextlib import asynccontextmanager
 import os
+import json
 from pathlib import Path
 import re
 import zipfile
@@ -13,15 +14,24 @@ from fastapi.staticfiles import StaticFiles
 from .service import Service, uid
 from . import comparison as cmp
 from .assets import VanillaAssets, resource
+from minebot.control import CollectorControls
+from minebot.lock import AlreadyRunning
 
 
-def create_app(directory=None, worker=True, testing=False):
+def create_app(directory=None, worker=True, testing=False, collector_directory=None):
     @asynccontextmanager
     async def lifespan(app):
         app.state.service = Service(directory, start_worker=worker)
-        app.state.vanilla = VanillaAssets(app.state.service.directory / "vanilla")
-        yield
-        app.state.service.close()
+        try:
+            app.state.vanilla = VanillaAssets(app.state.service.directory / "vanilla")
+            collector_path = collector_directory or (Path(directory).parent / 'collector' if testing and directory
+                               else os.environ.get('MINEBOT_DATA_DIR', cmp.ROOT / 'data/discovery'))
+            if Path(collector_path).resolve() == app.state.service.directory:
+                raise ValueError('Collector and reviewer data directories must be separate')
+            app.state.collector = CollectorControls(collector_path)
+            yield
+        finally:
+            app.state.service.close()
 
     app = FastAPI(title="Minecraft Dataset Reviewer", lifespan=lifespan, docs_url=None, redoc_url=None)
 
@@ -46,15 +56,19 @@ def create_app(directory=None, worker=True, testing=False):
     async def missing(request, error):
         return JSONResponse({"detail": str(error.args[0])}, status_code=404)
 
+    @app.exception_handler(AlreadyRunning)
+    async def collector_busy(request, error):
+        return JSONResponse({'detail': 'Collector is active; pause it and wait for it to stop before changing candidates'}, status_code=409)
+
     def service():
         return app.state.service
 
-    async def uploaded(file):
+    async def uploaded(file, limit=cmp.MAX_FILE_BYTES):
         content = bytearray()
         while part := await file.read(1024 * 1024):
             content.extend(part)
-            if len(content) > cmp.MAX_FILE_BYTES:
-                raise ValueError("File exceeds the 64 MiB import limit")
+            if len(content) > limit:
+                raise ValueError("File exceeds the import limit")
         return bytes(content)
 
     @app.get("/api/health")
@@ -100,6 +114,73 @@ def create_app(directory=None, worker=True, testing=False):
             except ValueError as error:
                 results.append({"filename": file.filename, "error": str(error)})
         return results
+
+    @app.post('/api/discovery/imports')
+    async def discovery_import(metadata: UploadFile = File(...), file: UploadFile = File(...),
+                               evidence: list[UploadFile] = File(default=[])):
+        from minebot.handoff import MAX_METADATA
+        from minebot.collection import MAX_EVIDENCE, MAX_EVIDENCE_TOTAL
+        try:
+            document = json.loads(await uploaded(metadata, MAX_METADATA))
+        except (UnicodeError, json.JSONDecodeError):
+            raise ValueError('Invalid discovery metadata JSON') from None
+        if len(evidence) > 100:
+            raise ValueError('Too many evidence files')
+        contents = []
+        total = 0
+        for item in evidence:
+            data = await uploaded(item, MAX_EVIDENCE)
+            total += len(data)
+            if total > MAX_EVIDENCE_TOTAL:
+                raise ValueError('Evidence exceeds handoff limit')
+            contents.append(data)
+        return service().import_discovery(document, await uploaded(file), contents)
+
+    @app.get('/api/discovery')
+    def discovery():
+        return service().discovery()
+
+    @app.get('/api/discovery/collector')
+    def collector_status():
+        return app.state.collector.status()
+
+    @app.get('/api/discovery/collector/candidates')
+    def collector_candidates(query: str = '', status: str = '', limit: int = 50, offset: int = 0):
+        return app.state.collector.candidates(query, status, limit, offset)
+
+    @app.post('/api/discovery/collector/pause')
+    def collector_pause(payload: dict = Body(...)):
+        if set(payload) != {'paused'}:
+            raise ValueError('Provide only the paused setting')
+        return app.state.collector.pause(payload['paused'])
+
+    @app.post('/api/discovery/collector/candidates/{identifier}/actions')
+    def collector_action(identifier: str, payload: dict = Body(...)):
+        if set(payload) != {'action'}:
+            raise ValueError('Provide only a candidate action')
+        return app.state.collector.action(identifier, payload['action'])
+
+    @app.get('/api/discovery/collector/candidates/{identifier}/history')
+    def collector_history(identifier: str):
+        return app.state.collector.history(identifier)
+
+    @app.get('/api/discovery/collector/candidates/{identifier}/evidence/{sha256}')
+    def collector_evidence(identifier: str, sha256: str):
+        path = app.state.collector.evidence(identifier, sha256)
+        return FileResponse(path, media_type='application/octet-stream', filename='evidence.txt')
+
+    @app.get('/api/discovery/{build_id}/evidence/{sha256}')
+    def discovery_evidence(build_id: str, sha256: str):
+        build = service().get_build(build_id)
+        known = {e['sha256'] for ref in build['source_references']
+                 if isinstance(ref.get('reference'), dict) and ref['reference'].get('kind') == 'minebot'
+                 for e in ref['reference']['license_evidence']}
+        if sha256 not in known:
+            raise KeyError('Evidence not found')
+        path = service().directory / 'discovery-evidence' / sha256
+        if not path.is_file() or cmp.digest(path) != sha256:
+            raise ValueError('Managed evidence is missing or changed')
+        return FileResponse(path, media_type='application/octet-stream', filename='evidence.txt')
 
     @app.post("/api/imports/existing")
     def existing():

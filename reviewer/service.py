@@ -179,6 +179,49 @@ class Service:
         self.schedule(job)
         return {"build_id": build, "job_id": job, "duplicate": False}
 
+    def import_discovery(self, document, content, evidence):
+        from minebot.handoff import validate_metadata
+        from urllib.parse import quote
+        document = validate_metadata(document, content)
+        refs = document['license_evidence']
+        if len(refs) != len(evidence):
+            raise ValueError('Pinned evidence files are missing')
+        for ref, data in zip(refs, evidence):
+            if (len(data) != ref['size'] or hashlib.sha256(data).hexdigest() != ref['sha256']
+                    or hashlib.sha1(f'blob {len(data)}\0'.encode() + data).hexdigest() != ref['blob_sha']):
+                raise ValueError('Pinned evidence hash mismatch')
+        # Only hash-derived paths are used; remote source paths remain display metadata.
+        directory = self.directory / 'discovery-evidence'
+        with self.lock:
+            directory.mkdir(exist_ok=True)
+            for ref, data in zip(refs, evidence):
+                path = directory / ref['sha256']
+                if path.exists():
+                    if cmp.digest(path) != ref['sha256']:
+                        raise ValueError('Managed evidence has changed')
+                else:
+                    with path.open('xb') as handle:
+                        handle.write(data)
+            reference = {'kind': 'minebot', **document}
+            result = self.import_bytes(Path(document['path']).name, content, reference)
+            if not result['duplicate']:
+                # Initialize source facts, leaving all human decisions at their defaults.
+                self.update_build(result['build_id'], {
+                    'source_url': f"https://github.com/{document['repository']}/blob/{document['revision']}/{quote(document['path'], safe='/')}",
+                    'revision': document['revision']})
+        return result | {'candidate_id': document['candidate_id'], 'source_sha256': document['source_sha256']}
+
+    def discovery(self):
+        result = []
+        for build in self.builds(archived='all'):
+            for ref in build['source_references']:
+                source = ref.get('reference')
+                if isinstance(source, dict) and source.get('kind') == 'minebot':
+                    result.append({'build_id': build['id'], 'filename': build['filename'],
+                                   'review_status': build['review_status'], 'archived': build['archived'],
+                                   'eligible': build['eligible'], 'source': source})
+        return result
+
     def process(self, job):
         with self.db() as db:
             row = db.execute("SELECT * FROM jobs WHERE id=?", (job,)).fetchone()

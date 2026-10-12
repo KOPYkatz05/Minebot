@@ -29,7 +29,7 @@ def run(store, github_factory=GitHub, config_override=None):
     with collector_lock(store.directory / 'collector.lock'):
         config = Config.parse(store.config().document() | (config_override or {}))
         identifier = uuid.uuid4().hex
-        report = {'started': now(), 'status': 'running', 'requests': 0, 'new_candidates': 0,
+        report = {'kind': 'discovery', 'started': now(), 'status': 'running', 'requests': 0, 'new_candidates': 0,
                   'coverage': 'bounded; repository search is not exhaustive', 'warnings': [], 'error': None}
         # Only the process-lock owner can recover earlier running records.
         for previous in store.status()['runs']:
@@ -141,6 +141,9 @@ def run(store, github_factory=GitHub, config_override=None):
                         task.update(attempts=attempts, retry_at=error.retry_at)
                         store.put_work(key, task)
                     raise
+                finally:
+                    report['requests'] = github.requests
+                    store.save_run(identifier, report)
             else:
                 report['status'] = 'completed'
         except SetupError as error:

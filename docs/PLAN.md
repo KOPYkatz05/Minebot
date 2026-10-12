@@ -32,9 +32,12 @@ two hours per run, one serial request at a time. Keep the existing reviewer's 64
    heuristic, not a determination of asset license applicability. Everything remains unvalidated,
    usage unknown and unapproved. Offline synthetic tests pass; live collection has not been piloted.
    Credential-safe `check-github` and a metadata-only `probe` command support readiness verification
-   with a total budget of at most 10 requests including authentication. The development environment's
-   attempted live check stopped with `setup_error` before any requests because its running task had
-   no credential binding; no successful authentication or discovery yield is claimed.
+   with a total budget of at most 10 requests including authentication. On 2026-10-12 the updated
+   environment successfully authenticated. Three API requests checked authentication and remote
+   branch/commit metadata; a separate seven-request probe authenticated again and recorded two public
+   repositories, zero candidates and 103 pending work items. The probe stopped at its request budget
+   and reported capped/incomplete search coverage. No schematics were downloaded; this verifies live
+   authentication and bounded metadata access, not collection, conversion or reviewer integration.
 4. **Implemented:** offline isolated validation through the published adapters in docs/ADAPTERS.md.
    Preserve block states, signed regions and metadata. Keep failed reports; generate measured redstone
    suggestions without changing human classifications. No GPU training dependencies in the collector.
@@ -43,8 +46,16 @@ two hours per run, one serial request at a time. Keep the existing reviewer's 64
    retained failed attempts, source/converter identities, duplicate reuse and stale-validation detection
    are implemented. Measured redstone IDs produce unconfirmed suggestions only. Schema v3 records
    validation separately; visual quality, provenance and training permission still require human review.
-5. **Next:** idempotent API handoff to the local reviewer; stage when offline. Add Discovery endpoints and tab,
-   source evidence display, links to review, pause/retry/dismiss/restore, progress, failures and storage.
+5. **Handoff implemented:** `handoff` transfers verified originals and hashed pinned evidence through
+   the loopback reviewer API, retains staged files and retry state when unavailable, and verifies
+   receipts. Duplicate delivery preserves human edits, decisions and dataset membership. The reviewer
+   independently processes imported originals. Discovery endpoints and an initial received-sources
+   tab show pinned source identities, downloadable evidence and links to review.
+   **Controls implemented:** local collector pause/resume, paginated candidate search and state filters,
+   collection/validation/delivery retries, dismiss/restore, stage counts, recent run checkpoints,
+   failure/attempt history and bounded-frequency staging storage usage. Candidate mutations hold the
+   collector process lock; pause remains available while a worker runs. The reviewer reads collector
+   state without recovering worker records or migrating a database during an active run.
    Preserve human edits on duplicate imports. Approval, usage and dataset admission remain manual.
 6. Windows scheduler setup/removal with hidden interactive-user execution, no stored password,
    no computer wake; bounded live pilot and browser verification. If runtime moves to a cloud host,

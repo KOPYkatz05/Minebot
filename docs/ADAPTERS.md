@@ -42,7 +42,7 @@ Keep parser validation in the collector's isolated subprocess.
 The implemented `minebot validate` worker now uses these entry points directly. See
 [BOT.md](BOT.md) for limits, report storage, retries and manual approval boundaries.
 Do not instantiate a second reviewer Service: its startup recovers jobs, which would interfere with a
-running reviewer. Do not edit reviewer SQLite tables from the collector; eventual handoff uses its API.
+running reviewer. Do not edit reviewer SQLite tables from the collector; `minebot handoff` uses its loopback API.
 
 Tests generate temporary source files themselves: tests/test_pipeline.py, tests/test_completion.py,
 tests/test_reviewer.py and tests/test_discovery.py. A clean checkout's full command is:

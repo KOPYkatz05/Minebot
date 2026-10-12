@@ -2,7 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { VoxelRenderer, stateText, type SceneData, type Marker, type Selection, type Appearance } from './viewer';
 import './style.css';
+import { CollectorPanel } from './CollectorPanel';
 
+type DiscoverySource = { kind: 'minebot'; candidate_id: string; repository: string; revision: string; path: string; source_sha256: string; evidence_status: string; validation_status: string; license_evidence: { path: string; sha256: string; size: number }[] };
+type DiscoveryEntry = { build_id: string; filename: string; review_status: string; archived: boolean; eligible: boolean; source: DiscoverySource };
 type Build = {
   id: string; filename: string; source_hash: string; type: string; styles: string[]; functions: string[];
   features: string[]; redstone: string; notes: string; family: string; family_confirmed: boolean;
@@ -10,7 +13,7 @@ type Build = {
   license: string; attribution: string; review_status: string; eligible: boolean; stale: boolean;
   eligibility_reasons: string[]; summary: { enclosing_dimensions_xyz: number[]; total_non_air_blocks_across_regions: number; region_count: number } | null;
   conversion: { id: string; report: { passed: boolean; counts: Record<string, number>; geometry_errors: string[]; metadata_changes: string[] } } | null;
-  source_references: { filename: string; reference: string | null }[];
+  source_references: { filename: string; reference: string | DiscoverySource | null }[];
   reviews: { decision: string; scope: string; created: string; notes: string }[];
 };
 type Dataset = { id: string; name: string; description: string; exclude_redstone: boolean; archived: boolean; build_ids: string[]; splits: Record<string, string>; versions: { id: string; created: string }[] };
@@ -138,6 +141,7 @@ function ComparisonView({ value }: { value: Comparison }) {
 }
 
 function App() {
+  const [discovery, setDiscovery] = useState<DiscoveryEntry[]>([]);
   const [coverage, setCoverage] = useState<Coverage | null>(null), [coverageQuery, setCoverageQuery] = useState('');
   const [page, setPage] = useState('Review queue'), [builds, setBuilds] = useState<Build[]>([]), [jobs, setJobs] = useState<Job[]>([]), [datasets, setDatasets] = useState<Dataset[]>([]);
   const [labelOptions, setLabelOptions] = useState<Record<'styles' | 'functions' | 'features', string[]>>({ styles: [], functions: [], features: [] });
@@ -160,8 +164,8 @@ function App() {
   const queue = filtered.filter(b => !b.archived && ['pending', 'deferred'].includes(b.review_status)).sort((a, b) => Number(a.review_status === 'deferred') - Number(b.review_status === 'deferred'));
   const displayed = page === 'Review queue' ? queue : filtered;
   async function refresh() {
-    const [bs, js, ds, labels] = await Promise.all([api<Build[]>('/builds?archived=all'), api<Job[]>('/jobs'), api<Dataset[]>('/datasets'), api<Record<'styles' | 'functions' | 'features', string[]>>('/labels')]);
-    setBuilds(bs); setJobs(js); setDatasets(ds); setLabelOptions(labels);
+    const [bs, js, ds, labels, sources] = await Promise.all([api<Build[]>('/builds?archived=all'), api<Job[]>('/jobs'), api<Dataset[]>('/datasets'), api<Record<'styles' | 'functions' | 'features', string[]>>('/labels'), api<DiscoveryEntry[]>('/discovery')]);
+    setDiscovery(sources); setBuilds(bs); setJobs(js); setDatasets(ds); setLabelOptions(labels);
     setSelected(current => current || bs.find(b => !b.archived)?.id || null);
     setDatasetId(current => current || ds[0]?.id || '');
   }
@@ -218,15 +222,20 @@ function App() {
     setLabelOptions(current => ({ ...current, [result.category]: [...new Set([...current[result.category], result.label])].sort((a, b) => a.localeCompare(b)) }));
     return result.label;
   }
+  function openReview(id: string) {
+    setFilterArchive('all'); setQuery(''); setFilterType(''); setFilterReview('');
+    setFilterRedstone(''); setFilterProvenance(''); setFilterStyle(''); setFilterFunction('');
+    setMinDimension(''); setMaxDimension(''); setSelected(id); setPage('Library');
+  }
   function formLabel(label: string, field: 'styles' | 'functions' | 'features') {
     return <div className="classification-field"><span>{label}</span><Labels category={field} value={draft?.[field] || []} options={labelOptions[field]} onChange={values => change(field, values)} onAdd={addLabel}/></div>;
   }
   return <div className="app">
     <header className="header"><div className="brand-mark">▦</div><div><h1>Build library</h1><p>Minecraft dataset reviewer</p></div><div className="header-right"><Badge good>Local workspace</Badge><span>{builds.filter(b => !b.archived).length} builds · {datasets.filter(d => !d.archived).length} datasets</span></div></header>
     {coverage && <section className="coverage-report" aria-label="Vanilla block coverage"><h2>Minecraft {coverage.version} · {coverage.total} vanilla block definitions</h2><p>{coverage.scope}</p><p>{Object.entries(coverage.counts).map(([kind,count]) => `${kind.replaceAll('_',' ')}: ${count}`).join(' · ')}</p><label>Search coverage<input value={coverageQuery} onChange={e => setCoverageQuery(e.target.value)} placeholder="Block name or coverage category"/></label><button onClick={() => setCoverage(null)}>Close coverage</button><div className="coverage-entries">{coverage.entries.filter(entry => `${entry.name} ${entry.category}`.includes(coverageQuery.toLowerCase())).map(entry => <details key={entry.name}><summary>{entry.name.replace('minecraft:','')} · {entry.category.replaceAll('_',' ')}</summary><p>{Object.entries(entry.properties).map(([key,value]) => `${key}=${value}`).join(', ') || 'No state properties in this representative sample'}</p>{entry.warnings.map(warning => <p key={warning}>{warning}</p>)}</details>)}</div></section>}
-    <nav aria-label="Main navigation">{['Review queue', 'Library', 'Datasets', 'Processing'].map(tab => <button key={tab} className={page === tab ? 'active' : ''} onClick={() => { setPage(tab); setPreview(null); }}>{tab}{tab === 'Review queue' && <span>{builds.filter(b => !b.archived && ['pending', 'deferred'].includes(b.review_status)).length}</span>}</button>)}<button disabled={busy} onClick={() => act(async () => setCoverage(await api<Coverage>('/vanilla/coverage')), 'Vanilla coverage loaded')}>Vanilla coverage</button></nav>
+    <nav aria-label="Main navigation">{['Review queue', 'Discovery', 'Library', 'Datasets', 'Processing'].map(tab => <button key={tab} className={page === tab ? 'active' : ''} onClick={() => { setPage(tab); setPreview(null); }}>{tab}{tab === 'Review queue' && <span>{builds.filter(b => !b.archived && ['pending', 'deferred'].includes(b.review_status)).length}</span>}</button>)}<button disabled={busy} onClick={() => act(async () => setCoverage(await api<Coverage>('/vanilla/coverage')), 'Vanilla coverage loaded')}>Vanilla coverage</button></nav>
     <div className="feedback" aria-live="polite">{error && <div role="alert" className="error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}{message && <div className="success">{message}</div>}</div>
-    {page !== 'Processing' && <section className="filters">
+    {page !== 'Processing' && page !== 'Discovery' && <section className="filters">
       <input aria-label="Search builds" placeholder="Search builds or labels…" value={query} onChange={e => setQuery(e.target.value)}/>
       <select aria-label="Building type filter" value={filterType} onChange={e => setFilterType(e.target.value)}><option value="">All types</option>{types.map(v => <option key={v}>{v}</option>)}</select>
       <select aria-label="Review status filter" value={filterReview} onChange={e => setFilterReview(e.target.value)}><option value="">All review states</option>{['pending', 'approved', 'rejected', 'deferred'].map(v => <option key={v}>{v}</option>)}</select>
@@ -259,7 +268,7 @@ function App() {
               <label>Usage status<select value={draft.provenance} onChange={e => change('provenance', e.target.value)}>{['unknown', 'allowed', 'denied', 'project_generated'].map(v => <option key={v}>{v}</option>)}</select></label>
               <p className="muted">Free download is not evidence of permission. Record the applicable terms or project authorship.</p>
               {(['source_url', 'license', 'revision', 'attribution', 'evidence'] as const).map(field => <label key={field}>{({ source_url: 'Source URL', license: 'License', revision: 'Repository revision', attribution: 'Attribution', evidence: 'Permission evidence' })[field]}<input value={draft[field]} onChange={e => change(field, e.target.value)}/></label>)}
-              <small>Source hash: {active.source_hash}</small>{active.source_references.map((ref, i) => <p className="muted" key={i}>{ref.filename} · {ref.reference || 'Uploaded file'}</p>)}
+              <small>Source hash: {active.source_hash}</small>{active.source_references.map((ref, i) => <p className="muted" key={i}>{ref.filename} · {typeof ref.reference === 'object' && ref.reference ? `${ref.reference.repository} · ${ref.reference.path} · ${ref.reference.revision.slice(0, 12)}` : ref.reference || 'Uploaded file'}</p>)}
             </details>
             <button className="primary" disabled={busy} onClick={save}>Save details</button>
             {!!active.eligibility_reasons.length && <details><summary>Why not ready for training?</summary><ul>{active.eligibility_reasons.map(reason => <li key={reason}>{reason}</li>)}</ul></details>}
@@ -284,6 +293,7 @@ function App() {
         <h3>Exported versions</h3>{dataset.versions.length ? dataset.versions.map(v => <div className="version-row" key={v.id}><span>{new Date(v.created).toLocaleString()} · {v.id.slice(0, 12)}</span><a href={`/api/datasets/${dataset.id}/versions/${v.id}/download`}>Download ZIP</a><a href={`/api/datasets/${dataset.id}/versions/${v.id}`} target="_blank" rel="noreferrer">Manifest</a></div>) : <p className="muted">No versions exported yet.</p>}
       </> : <div className="welcome"><h2>Create your first dataset.</h2><p>A build can belong to several collections, each with independent membership.</p></div>}</section>
     </main>}
+    {page === 'Discovery' && <main className="processing-page" aria-label="Discovery handoffs"><CollectorPanel reviewerBuildIds={builds.map(build => build.id)} onOpenReview={openReview}/><div className="title-row"><h2>Received from MineBot</h2><span>{discovery.length} pinned source references</span></div><p>These builds arrived from the collector. Open a build to compare it, correct labels and record your approval. Source evidence does not establish training permission.</p>{discovery.length ? discovery.map(entry => <section className="discovery-source" key={`${entry.build_id}:${entry.source.candidate_id}`}><div className="title-row"><h3>{entry.filename}</h3><Badge good={entry.review_status === 'approved'}>{entry.review_status}{entry.archived ? ' · archived' : ''}</Badge><button onClick={() => openReview(entry.build_id)}>Open for review</button></div><p>{entry.source.repository} · {entry.source.path}</p><details><summary>Pinned source and evidence</summary><p>Revision: {entry.source.revision}</p><p>Original SHA-256: {entry.source.source_sha256}</p><p>Collector validation: {entry.source.validation_status} · Evidence: {entry.source.evidence_status}</p>{entry.source.license_evidence.length ? <ul>{entry.source.license_evidence.map((e, i) => <li key={i}><a href={`/api/discovery/${entry.build_id}/evidence/${e.sha256}`}>Download {e.path}</a> · {e.size} bytes<small>{e.sha256}</small></li>)}</ul> : <p>No matching source evidence was captured.</p>}</details></section>) : <p>No bot handoffs received yet. Start the local collector handoff after collection and validation.</p>}</main>}
     {page === 'Processing' && <main className="processing-page"><div className="title-row"><h2>Import & conversion jobs</h2><span>One worker · failures are isolated · originals stay unchanged</span></div>{jobs.length ? jobs.map(job => <div className="job" key={job.id}><div><strong>{job.filename}</strong><p>{job.error || 'Independent inspection and full block-state comparison'}</p></div><Badge good={job.status === 'completed'}>{job.status}</Badge>{['failed', 'interrupted'].includes(job.status) && <button disabled={busy} onClick={() => act(() => api(`/jobs/${job.id}/retry`, { method: 'POST' }), 'Retry queued')}>Retry</button>}</div>) : <p>No processing jobs yet. Import a file from the review queue.</p>}</main>}
     <footer>Local dataset reviewer · Originals preserved · Diagnostic rendering only</footer>
   </div>;

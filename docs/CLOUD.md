@@ -12,9 +12,16 @@ In Codex on web or desktop:
 5. For live discovery only, configure `GITHUB_TOKEN` through the environment's credential settings for `api.github.com`. Do not paste it into a task prompt, repository file or script. Network-secret placeholders are acceptable: the client only sends this value in an Authorization header.
 6. Review the setup report and select **Publish**. Confirm **Environment published**, then start a new task using this environment.
 
+Verify the active task with `.venv/bin/python -m minebot check-github`. For a small metadata-only
+readiness check, use `.venv/bin/python -m minebot --data-dir data/probe probe --request-budget 10`.
+Authentication consumes one of those 10 requests. These commands do not download schematics and
+never display the credential. If the active runtime still reports no secret binding or API host access
+after configuration changes, apply the changes or start a task with the updated environment; saved
+configuration alone does not prove the current process has received it.
+
 Suggested first cloud task:
 
-> Read AGENTS.md and docs/PLAN.md. Run the tests, then implement milestone 3: pinned evidence capture and streamed immutable downloads, with blob verification, SHA-256 deduplication, storage budgets, held-source handling and deterministic tests. Keep all candidates unapproved and usage permission unknown. Open a PR with the validation results.
+> Read AGENTS.md and docs/PLAN.md. Run the tests and inspect the implemented discovery/collection commands. Continue milestone 4 only when the original local parser/conversion adapters and their interface are available. Keep all candidates unapproved and usage permission unknown. Open a PR with the validation results.
 
 This is a development environment, not an always-running collector host. Daily production scheduling,
 durable deployment storage, and access to the original Windows local reviewer remain separate work.
